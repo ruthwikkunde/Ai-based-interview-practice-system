@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <title>AI Interview Trainer</title>
+
+    <style>
+        body {
+            font-family: Arial;
+            background: #f3fff3;
+            text-align: center;
+            margin: 0;
+        }
+
+        .header {
+            background: #58cc02;
+            color: white;
+            padding: 15px;
+            font-size: 24px;
+        }
+
+        .category {
+            margin: 20px;
+        }
+
+        button {
+            background: #58cc02;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            margin: 5px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #46a302;
+        }
+
+        .chat {
+            width: 60%;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            min-height: 150px;
+            max-height: 300px;
+            overflow-y: auto;
+            box-shadow: 0px 0px 10px #ddd;
+        }
+
+        .bot {
+            background: #eaffea;
+            padding: 10px;
+            margin: 10px;
+            border-radius: 10px;
+            text-align: left;
+        }
+
+        .user {
+            background: #d9f2ff;
+            padding: 10px;
+            margin: 10px;
+            border-radius: 10px;
+            text-align: right;
+        }
+
+        input {
+            padding: 10px;
+            width: 50%;
+            border-radius: 5px;
+            border: 1px solid gray;
+        }
+
+        .controls {
+            margin-top: 15px;
+        }
+
+        .timer {
+            font-size: 18px;
+            margin-top: 10px;
+        }
+
+        .dashboard {
+            width: 60%;
+            margin: auto;
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            box-shadow: 0px 0px 10px #ddd;
+        }
+
+        .history {
+            width: 60%;
+            margin: auto;
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            box-shadow: 0px 0px 10px #ddd;
+            text-align: left;
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <div class="header">
+        AI Interview Trainer
+    </div>
+
+    <div class="category">
+
+        <button onclick="getQuestion('technical')">Technical</button>
+        <button onclick="getQuestion('hr')">HR</button>
+
+    </div>
+
+    <div class="chat" id="chat"></div>
+
+    <div class="controls">
+
+        <input type="text" id="answer" placeholder="Type your answer">
+
+        <button onclick="speak()">🎤</button>
+        <button onclick="submitAnswer()">Submit</button>
+
+    </div>
+
+    <div class="timer">
+        ⏱ Time Left: <span id="timer">60</span>
+    </div>
+
+    <div class="dashboard">
+
+        <h3>Dashboard</h3>
+
+        Total Questions: <span id="total">0</span><br><br>
+
+        Average Score: <span id="avg">0</span><br><br>
+
+        Highest Score: <span id="high">0</span><br><br>
+
+        Last Attempt Score: <span id="last">0</span>
+
+    </div>
+
+    <div class="history">
+
+        <h3>History</h3>
+
+        <div id="history"></div>
+
+    </div>
+
+    <script>
+
+        let currentQuestion = "";
+        let time = 60;
+        let interval;
+
+        function speakText(text) {
+
+            let speech = new SpeechSynthesisUtterance(text);
+            speech.lang = "en-US";
+            window.speechSynthesis.speak(speech);
+
+        }
+
+        function getQuestion(category) {
+
+            fetch("/get_question/" + category)
+                .then(res => res.json())
+                .then(data => {
+
+                    currentQuestion = data.question;
+
+                    let chat = document.getElementById("chat");
+
+                    chat.innerHTML += "<div class='bot'>" + data.question + "</div>";
+
+                    speakText(data.question);
+
+                    startTimer();
+
+                });
+
+        }
+
+        function submitAnswer() {
+
+            let ans = document.getElementById("answer").value;
+
+            if (ans === "") {
+                alert("Please enter answer");
+                return;
+            }
+
+            let chat = document.getElementById("chat");
+
+            chat.innerHTML += "<div class='user'>" + ans + "</div>";
+
+            fetch("/submit", {
+
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    question: currentQuestion,
+                    answer: ans
+                })
+
+            })
+                .then(res => res.json())
+                .then(data => {
+
+                    chat.innerHTML += "<div class='bot'>Score: " + data.score + "<br>" + data.feedback + "</div>";
+
+                    speakText("Your score is " + data.score + ". " + data.feedback);
+
+                    document.getElementById("answer").value = "";
+
+                    loadHistory();
+
+                });
+
+        }
+
+        function speak() {
+
+            let recognition = new webkitSpeechRecognition();
+
+            recognition.lang = "en-US";
+
+            recognition.start();
+
+            recognition.onresult = function (event) {
+
+                document.getElementById("answer").value =
+                    event.results[0][0].transcript;
+
+            }
+
+        }
+
+        function startTimer() {
+
+            clearInterval(interval);
+
+            time = 60;
+
+            interval = setInterval(function () {
+
+                document.getElementById("timer").innerText = time;
+
+                time--;
+
+                if (time < 0) {
+                    clearInterval(interval);
+                    alert("Time up");
+                }
+
+            }, 1000);
+
+        }
+
+        function loadHistory() {
+
+            fetch("/history")
+                .then(res => res.json())
+                .then(data => {
+
+                    let historyDiv = document.getElementById("history");
+
+                    historyDiv.innerHTML = "";
+
+                    let total = data.length;
+                    let sum = 0;
+                    let high = 0;
+                    let last = 0;
+
+                    data.forEach(item => {
+
+                        historyDiv.innerHTML +=
+                            "<div class='bot'>" + item.question +
+                            "<br>Score: " + item.score + "</div>";
+
+                        sum += item.score;
+
+                        if (item.score > high)
+                            high = item.score;
+
+                        last = item.score;
+
+                    });
+
+                    document.getElementById("total").innerText = total;
+
+                    if (total > 0) {
+                        document.getElementById("avg").innerText = (sum / total).toFixed(2);
+                        document.getElementById("high").innerText = high;
+                        document.getElementById("last").innerText = last;
+                    }
+
+                });
+
+        }
+
+    </script>
+
+</body>
+
+</html>
